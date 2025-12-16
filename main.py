@@ -7,6 +7,7 @@ from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+import os
 
 from smolagents import CodeAgent, tool
 from smolagents.agents import ActionStep
@@ -14,6 +15,38 @@ from smolagents.agents import ActionStep
 # Load environment variables
 load_dotenv()
 
+
+@tool
+def click_top_trending_repo() -> None:
+    """Clicks the top trending GitHub repository"""
+    driver.get("https://github.com/trending")
+
+    link = driver.find_element(
+        By.XPATH,
+        "(//article//h2//a)[1]"
+    )
+    href = link.get_attribute("href")
+    link.click()
+
+@tool
+def safe_click(text: str) -> bool:
+    """Clicks an element only if it exists and returns True if it was successful.
+        Args:
+            text: The text to search for
+    """
+    from helium import Text, click
+
+    if not Text(text).exists():
+        return False
+    click(text)
+    return True
+
+
+@tool
+def get_links_with_slash() -> int:
+    """Returns the number of links whose href contains '/'"""
+    links = driver.find_elements(By.XPATH, "//a[contains(@href, '/')]")
+    return len(links)
 
 @tool
 def search_item_ctrl_f(text: str, nth_result: int = 1) -> str:
@@ -80,12 +113,14 @@ def save_screenshot(memory_step: ActionStep, agent: CodeAgent) -> None:
 from smolagents import InferenceClientModel
 
 # Initialize the model
-model_id = "Qwen/Qwen2-VL-72B-Instruct"  # You can change this to your preferred VLM model
-model = InferenceClientModel(model_id=model_id)
+model_id = "Qwen/Qwen3-Next-80B-A3B-Thinking"  # You can change this to your preferred VLM model
+TOKEN = os.environ.get('HF_TOKEN')
+# model = InferenceClientModel(token=os.environ.get("HF_TOKEN"), api_key=API_KEY, model_id=model_id)
+model = InferenceClientModel( model_id=model_id, api_key=TOKEN, provider="novita")
 
 # Create the agent
 agent = CodeAgent(
-    tools=[go_back, close_popups, search_item_ctrl_f],
+    tools=[go_back, close_popups, search_item_ctrl_f, get_links_with_slash, click_top_trending_repo, safe_click],
     model=model,
     additional_authorized_imports=["helium"],
     step_callbacks=[save_screenshot],
@@ -94,7 +129,7 @@ agent = CodeAgent(
 )
 
 # Import helium for the agent
-agent.python_executor("from helium import *", agent.state)
+agent.python_executor("from helium import *")
 
 
 helium_instructions = """
@@ -103,10 +138,11 @@ We've already ran "from helium import *"
 Then you can go to pages!
 Code:
 ```py
-go_to('github.com/trending')
+go_to('https://github.com/trending')
 ```<end_code>
 
 You can directly click clickable elements by inputting the text that appears on them.
+Only do this after confirming it's a safe click using the safe_click tool
 Code:
 ```py
 click("Top products")
@@ -144,18 +180,15 @@ if Text('Accept cookies?').exists():
 """
 
 
-search_request = """
-Please navigate to https://en.wikipedia.org/wiki/Chicago and give me a sentence containing the word "1992" that mentions a construction accident.
-"""
-
-agent_output = agent.run(search_request + helium_instructions)
-print("Final output:")
-print(agent_output)
+# agent_output = agent.run(search_request + helium_instructions)
+# print("Final output:")
+# print(agent_output)
 
 
 github_request = """
 I'm trying to find how hard I have to work to get a repo in github.com/trending.
-Can you navigate to the profile for the top author of the top trending repo, and give me their total number of commits over the last year?
+Can you navigate to the top trending repo, and give me the total number of stars and forks
+the repo has.
 """
 
 agent_output = agent.run(github_request + helium_instructions)

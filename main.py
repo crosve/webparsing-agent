@@ -180,10 +180,6 @@ if Text('Accept cookies?').exists():
 """
 
 
-# agent_output = agent.run(search_request + helium_instructions)
-# print("Final output:")
-# print(agent_output)
-
 
 github_request = """
 I'm trying to find how hard I have to work to get a repo in github.com/trending.
